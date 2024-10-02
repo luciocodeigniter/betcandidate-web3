@@ -117,7 +117,7 @@ contract BetCandidate {
         // quem está chamando a função é `owner`?
         require(owner == msg.sender, "Invalid user");
         // o vencedor é um cadidato válido?
-        require(winner == 1 || winner == 2, "Invalid winner");
+        require(winner == 1 || winner == 2, "Account is not owner");
         // já foi definido o `winner`?
         require(dispute.winner == 0, "Dispute is closed");
 
@@ -141,5 +141,34 @@ contract BetCandidate {
         // risco de alguma transferência falhar
         payable(owner).transfer(commision);
     }
-}
 
+    // função que permite ao apostador sacar o prêmio
+    function claim() external  {
+        // tentamos pegar a aposta do user que está executando esse método
+        Bet memory userBet = allBets[msg.sender];
+
+        // preciso validar se: 
+        // 1º as apostas já estão encerradas,
+        // 2º se o `winner` é o candidato que o user apostou
+        // 3º se o user ainda não sacou seu prêmio
+        require(dispute.winner > 0 && dispute.winner == userBet.candidate && userBet.claimed == 0, "Invalid claim");
+
+        // agora precisamos descobrir a quantia apostada no candidato vencedor
+        // para que possamos calcular o percentual desse user em cima do total
+        // de apostas no candidato vencedor, ou seja, se o user apostou metade 
+        // do total de apostas no candidato vencedor, esse user tem que ficar
+        // com metade do total do prêmio das apostas
+        uint winnerAmount = dispute.winner == 1 ? dispute.total1 : dispute.total2;
+
+        // agora calculo a proporção que o user teve no total de apostas no candidato vencedor
+        uint ratio = (userBet.amount * 1e4) / winnerAmount;
+        uint individualPrize = netPrize * ratio / 1e4;
+
+        // agora preciso definir que o user já sacou
+        //! Atenção: Não posso usar o `userBet` pois ele é uma cópia memory
+        allBets[msg.sender].claimed = individualPrize;
+
+        // agora preciso tranferir o valor para o user
+        payable(msg.sender).transfer(individualPrize);
+    }
+}
